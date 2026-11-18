@@ -37,8 +37,11 @@ RUN set -eu; \
     tar -xf jq.tar.gz; tar -xf xz.tar.gz; tar -xf curl.tar.gz; tar -xf openssl.tar.gz
 
 # OpenSSL — статический бэкенд TLS для curl (no-shared: в бинарь curl войдёт всё нужное).
+# --libdir=lib обязателен: linux-x86_64 по умолчанию ставит .a и pkgconfig в
+# lib64 (на aarch64 — lib), и все пути ниже (/opt/ossl/lib, PKG_CONFIG_PATH)
+# тогда не совпадают на двух арках (проверено: amd64 падал «cannot find -lssl»).
 RUN set -eu; cd openssl-${OPENSSL_VERSION}; \
-    ./Configure --prefix=/opt/ossl --openssldir=/etc/ssl no-shared no-tests no-ui-console; \
+    ./Configure --prefix=/opt/ossl --openssldir=/etc/ssl --libdir=lib no-shared no-tests no-ui-console; \
     make -j"$(nproc)"; make install_sw
 
 # LDFLAGS=-all-static: бинарь линкуется через libtool, а libtool съедает
