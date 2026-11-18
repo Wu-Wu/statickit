@@ -15,9 +15,6 @@ on:
 
 env:
   IMAGE: ${{ vars.DOCKERHUB_USER }}/statickit
-  # toLower: GHCR-путь, как и docker.io, обязан быть строчным (заглавные буквы
-  # docker-клиенты разбирают как hostname реестра)
-  IMAGE_GHCR: ghcr.io/${{ toLower(github.repository) }}
 
 jobs:
   build:
@@ -46,6 +43,9 @@ jobs:
           password: ${{ github.token }}
       - name: Build and push (native ${{ matrix.arch }})
         run: |
+          # GHCR-путь обязан быть строчным; в языке выражений Actions нет toLower,
+          # понижаем регистр в bash (GITHUB_REPOSITORY = "Owner/Repo")
+          IMAGE_GHCR="ghcr.io/${GITHUB_REPOSITORY,,}"
           TAG="${GITHUB_REF_NAME#v}"
           [ "$TAG" = "$GITHUB_REF_NAME" ] || true
           if [ "$TAG" = "$GITHUB_REF" ]; then TAG="sha-${GITHUB_SHA::12}"; fi
@@ -74,6 +74,7 @@ jobs:
           password: ${{ github.token }}
       - name: Compose multi-arch manifest
         run: |
+          IMAGE_GHCR="ghcr.io/${GITHUB_REPOSITORY,,}"
           TAG="${GITHUB_REF_NAME#v}"
           if [ "$TAG" = "$GITHUB_REF" ]; then TAG="sha-${GITHUB_SHA::12}"; fi
           docker buildx imagetools create \
@@ -113,6 +114,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
+          IMAGE_GHCR="ghcr.io/${GITHUB_REPOSITORY,,}"
           TAG="${GITHUB_REF_NAME#v}"
           DH_DIGEST=$(docker buildx imagetools inspect "$IMAGE:$TAG" --format '{{json .Manifest.Digest}}')
           GH_DIGEST=$(docker buildx imagetools inspect "$IMAGE_GHCR:$TAG" --format '{{json .Manifest.Digest}}')
