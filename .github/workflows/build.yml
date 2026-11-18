@@ -4,9 +4,9 @@ name: build-tools
 # мультиарх-манифест X.Y.Z (без v-префикса) и latest в docker.io/<DOCKERHUB_USER>/statickit,
 # и зеркало в ghcr.io/<владелец>/<репа> (пуш встроенным GITHUB_TOKEN, секреты не нужны).
 # digest манифеста печатается в Step Summary — его пином в целевом Dockerfile.
-# ВНИМАНИЕ: первый пуш создаёт на GHCR ПРИВАТНЫЙ пакет — перевести в public надо
-# руками (Packages -> statickit -> Package settings -> Change visibility), иначе
-# анонимный pull (в т.ч. через кэш-прокси реестра) не работает.
+# GHCR: пуш идёт встроенным GITHUB_TOKEN из публичного репа — пакет наследует его
+# публичную видимость (проверено анонимным pull). Приватным он был бы при пуше
+# вручную под PAT вне репа — тогда включать public вручную.
 
 on:
   push:
@@ -122,17 +122,26 @@ jobs:
           CURL_V=$(sed -n 's/^ARG CURL_VERSION=//p' Dockerfile)
           XZ_V=$(sed -n 's/^ARG XZ_VERSION=//p' Dockerfile)
           OSSL_V=$(sed -n 's/^ARG OPENSSL_VERSION=//p' Dockerfile)
+          # imagetools create собирает байт-идентичные манифест-листы, так что
+          # digest обычно общий; на всякий случай печатаем оба при расхождении
+          if [ "$DH_DIGEST" = "$GH_DIGEST" ]; then
+            DIGEST_LINE="**digest:** \`${DH_DIGEST}\` (одинаков в обоих реестрах)"
+          else
+            DIGEST_LINE="**digest:** Docker Hub \`${DH_DIGEST}\`, GHCR \`${GH_DIGEST}\`"
+          fi
           cat > notes.md <<EOF
           Статические \`jq ${JQ_V}\`, \`curl ${CURL_V}\` (OpenSSL ${OSSL_V}), \`xz ${XZ_V}\` — мультиарх amd64+arm64, ноль рантайм-зависимостей. В образе: \`/tools/{jq,curl,xz}\` + \`/tools/licenses/\`.
 
           ## Где образ
 
-          | реестр | pull-ссылка | digest |
-          |---|---|---|
-          | Docker Hub | \`docker.io/${IMAGE}:${TAG}\` (есть ещё \`:latest\`) | \`${DH_DIGEST}\` |
-          | GHCR | \`${IMAGE_GHCR}:${TAG}\` (есть ещё \`:latest\`) | \`${GH_DIGEST}\` |
+          ${DIGEST_LINE}
 
-          Страницы: [hub.docker.com/r/${IMAGE}/tags](https://hub.docker.com/r/${IMAGE}/tags) · [ghcr.io/${IMAGE_GHCR#ghcr.io/}](https://ghcr.io/${IMAGE_GHCR#ghcr.io/}) (пакет нужно один раз перевести в Public для анонимного pull)
+          | реестр | образ |
+          |---|---|
+          | Docker Hub | \`docker.io/${IMAGE}:${TAG}\` · \`docker.io/${IMAGE}:latest\` |
+          | GHCR | \`${IMAGE_GHCR}:${TAG}\` · \`${IMAGE_GHCR}:latest\` |
+
+          Страницы: [hub.docker.com/r/${IMAGE}/tags](https://hub.docker.com/r/${IMAGE}/tags) · [ghcr.io/${IMAGE_GHCR#ghcr.io/}](https://ghcr.io/${IMAGE_GHCR#ghcr.io/})
           EOF
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release edit "$GITHUB_REF_NAME" --notes-file notes.md
