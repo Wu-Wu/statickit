@@ -91,3 +91,49 @@ jobs:
             docker buildx imagetools inspect "$IMAGE_GHCR:$TAG"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # GitHub Release по тегу: чтобы в /releases был виден тег и готовая шпаргалка,
+  # как образ тянуть/пинить из обоих реестров.
+  release:
+    needs: publish
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write   # gh release create под GITHUB_TOKEN
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          TAG="${GITHUB_REF_NAME#v}"
+          DH_DIGEST=$(docker buildx imagetools inspect "$IMAGE:$TAG" --format '{{json .Manifest.Digest}}')
+          GH_DIGEST=$(docker buildx imagetools inspect "$IMAGE_GHCR:$TAG" --format '{{json .Manifest.Digest}}')
+          JQ_V=$(sed -n 's/^ARG JQ_VERSION=//p' Dockerfile)
+          CURL_V=$(sed -n 's/^ARG CURL_VERSION=//p' Dockerfile)
+          XZ_V=$(sed -n 's/^ARG XZ_VERSION=//p' Dockerfile)
+          OSSL_V=$(sed -n 's/^ARG OPENSSL_VERSION=//p' Dockerfile)
+          cat > notes.md <<EOF
+          Статические \`jq ${JQ_V}\`, \`curl ${CURL_V}\` (OpenSSL ${OSSL_V}), \`xz ${XZ_V}\` — мультиарх amd64+arm64, ноль рантайм-зависимостей. В образе: \`/tools/{jq,curl,xz}\` + \`/tools/licenses/\`.
+
+          ## Где образ
+
+          | реестр | pull-ссылка | digest |
+          |---|---|---|
+          | Docker Hub | \`docker.io/${IMAGE}:${TAG}\` (есть ещё \`:latest\`) | \`${DH_DIGEST}\` |
+          | GHCR | \`${IMAGE_GHCR}:${TAG}\` (есть ещё \`:latest\`) | \`${GH_DIGEST}\` |
+
+          Страницы: [hub.docker.com/r/${IMAGE}/tags](https://hub.docker.com/r/${IMAGE}/tags) · [ghcr.io/${IMAGE_GHCR#ghcr.io/}](https://ghcr.io/${IMAGE_GHCR#ghcr.io/}) (пакет нужно один раз перевести в Public для анонимного pull)
+          EOF
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" --notes-file notes.md
+          else
+            gh release create "$GITHUB_REF_NAME" --title "statickit ${GITHUB_REF_NAME}" --notes-file notes.md --latest
+          fi

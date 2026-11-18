@@ -42,6 +42,8 @@ Elasticsearch).
    `GITHUB_TOKEN`, отдельных секретов нет). Первый пуш создаёт на GHCR приватный
    пакет — если нужен анонимный pull, переключить вручную: Packages → statickit →
    Package settings → Change visibility → Public.
+5. По тому же тегу автоматически создаётся GitHub Release: pull-ссылки и digest'ы
+   обоих реестров прямо на странице релиза.
 
 ## Потребление
 
