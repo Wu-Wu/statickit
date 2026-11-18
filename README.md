@@ -38,6 +38,10 @@ Elasticsearch).
 3. Workflow собирает образы на нативных раннерах amd64 (`ubuntu-24.04`) и
    arm64 (`ubuntu-24.04-arm`), склеивает мультиарх-манифест `:X.Y.Z` +
    `:latest` (префикс `v` из git-тега отбрасывается), digest пишет в Step Summary.
+4. То же зеркалится в `ghcr.io/<владелец-строчными>/statickit` (пуш встроенным
+   `GITHUB_TOKEN`, отдельных секретов нет). Первый пуш создаёт на GHCR приватный
+   пакет — если нужен анонимный pull, переключить вручную: Packages → statickit →
+   Package settings → Change visibility → Public.
 
 ## Потребление
 
