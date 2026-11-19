@@ -38,6 +38,7 @@ jobs:
           - arch: arm64
             runner: ubuntu-24.04-arm   # нативный arm64, бесплатно для публичных репо
     runs-on: ${{ matrix.runner }}
+    name: build (${{ matrix.arch }})   # короткий стабильный context для required status checks
     steps:
       - uses: actions/checkout@v7
       - uses: docker/login-action@v4
