@@ -1,0 +1,15 @@
+version: 2
+updates:
+  # Обновления Actions (actions/*, docker/*, QEMU): PR раз в неделю.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "ci"
+    open-pull-requests-limit: 5
+
+  # jq/curl/xz/OpenSSL пинятся tarball'ами с sha256 прямо в Dockerfile —
+  # Dependabot такие raw-URL не отслеживает, это осознанно руками:
+  # бамп = правка версий + sha256 в Dockerfile (порядок — README).
