@@ -57,9 +57,10 @@ jobs:
           # GHCR-путь обязан быть строчным; в языке выражений Actions нет toLower,
           # понижаем регистр в bash (GITHUB_REPOSITORY = "Owner/Repo")
           IMAGE_GHCR="ghcr.io/${GITHUB_REPOSITORY,,}"
-          TAG="${GITHUB_REF_NAME#v}"
-          [ "$TAG" = "$GITHUB_REF_NAME" ] || true
-          if [ "$TAG" = "$GITHUB_REF" ]; then TAG="sha-${GITHUB_SHA::12}"; fi
+          # Тег образа: push по тегу vX.Y.Z -> "X.Y.Z"; всё остальное (dispatch, PR)
+          # -> sha-префикс. Имя ветки как тег недопустимо: на PR GITHUB_REF_NAME
+          # это "N/merge" и docker ломается на слэше.
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then TAG="${GITHUB_REF_NAME#v}"; else TAG="sha-${GITHUB_SHA::12}"; fi
           docker build --platform "linux/${{ matrix.arch }}" \
             -t "$IMAGE:$TAG-${{ matrix.arch }}" \
             -t "$IMAGE_GHCR:$TAG-${{ matrix.arch }}" .
@@ -91,8 +92,7 @@ jobs:
       - name: Compose multi-arch manifest
         run: |
           IMAGE_GHCR="ghcr.io/${GITHUB_REPOSITORY,,}"
-          TAG="${GITHUB_REF_NAME#v}"
-          if [ "$TAG" = "$GITHUB_REF" ]; then TAG="sha-${GITHUB_SHA::12}"; fi
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then TAG="${GITHUB_REF_NAME#v}"; else TAG="sha-${GITHUB_SHA::12}"; fi
           docker buildx imagetools create \
             -t "$IMAGE:$TAG" -t "$IMAGE:latest" \
             "$IMAGE:$TAG-amd64" "$IMAGE:$TAG-arm64"
