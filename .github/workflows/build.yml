@@ -13,6 +13,13 @@ on:
     tags: ['v*']
   workflow_dispatch: {}
 
+# Параллельные прогоны одного ref (два dispatch, reruns рядом) не должны
+# перемывать друг другу мультиарх-манифесты: одна публикация на ref за раз,
+# отменаrunning запрещена — дожидаемся, не бросая пуш на середине.
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   IMAGE: ${{ vars.DOCKERHUB_USER }}/statickit
 
