@@ -1,0 +1,19 @@
+name: Bug report
+description: A tool doesn't work as documented / an image is broken
+labels: ["bug"]
+body:
+  - type: input
+    id: ref
+    attributes:
+      label: Image reference
+      description: Tag and/or digest (docker.io/wuwux/statickit@sha256:… or ghcr.io/…)
+      placeholder: sha256:34fa61d1…
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: The command, expected vs actual behavior. Add architecture and base image if relevant.
+    validations:
+      required: true
