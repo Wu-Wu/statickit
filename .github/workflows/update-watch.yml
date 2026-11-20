@@ -1,0 +1,40 @@
+# update-watch: еженедельная сверка запиненных в Dockerfile тарбалов с
+# релизами апстримов (jq, xz, curl, openssl).
+#   patch/minor -> PR update/<tool>-<ver> (sha пересчитан; мерж ТОЛЬКО вручную
+#                 после зелёных build+smoke — автослияния тут нет и не будет)
+#   major       -> issue.
+# Для PR, создаваемых этим workflow, должны работать required checks. PR,
+# открытый от имени GITHUB_TOKEN, триггерить pull_request-воркфлоу НЕ будет
+# (антирекурсия GitHub), поэтому в репозиторий кладётся secret UPDATE_TOKEN:
+# fine-grained PAT этого же аккаунта, доступ только к statickit, разрешения
+# Contents RW + Pull requests RW. Без него PRы создадутся без прогонов.
+name: update-watch
+
+on:
+  schedule:
+    - cron: '30 5 * * 1'   # понедельник 05:30 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'только план в лог, без веток/PR/issue'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write        # ветки update/*
+  pull-requests: write   # bump-PR
+  issues: write          # major-issues
+
+jobs:
+  watch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: update-watch
+        env:
+          # UPDATE_TOKEN (опционально, см. коммент выше) иначе GITHUB_TOKEN
+          GITHUB_TOKEN: ${{ secrets.UPDATE_TOKEN != '' && secrets.UPDATE_TOKEN || github.token }}
+          BASE_BRANCH: ${{ github.event.repository.default_branch }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+        run: bash .github/scripts/update-watch.sh
