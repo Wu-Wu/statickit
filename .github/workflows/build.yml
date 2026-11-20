@@ -89,7 +89,7 @@ jobs:
             command -v jq    | grep -q ^/tools/jq
             echo "{\"a\":2}" | jq -e ".a * 2 == 4" >/dev/null
             printf abcdef | xz -c > /tmp/t.xz && xz -t /tmp/t.xz   # раундтрип как у tar -J
-            curl -sSf --max-time 15 https://api.github.com/zen -o /dev/null
+            curl -sSf --retry 2 --max-time 15 https://example.com -o /dev/null   # TLS+сеть; не GitHub API (per-IP rate limit на шареных раннерах)
             curl --version | grep -q OpenSSL                # TLS-бэкенд на месте
             [ -f /tools/licenses/jq-MIT ] || [ -d /tools/licenses ]
             echo "smoke ok: $(jq --version) $(curl --version | head -1) $(xz --version | head -1)"
