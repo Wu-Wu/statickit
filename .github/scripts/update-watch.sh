@@ -100,7 +100,7 @@ create_pr() {
     api "/repos/$REPO/issues" -X POST -d "$(jq -n \
       --arg t "update skipped earlier: $tool $old -> $new" \
       --arg b "Открывался PR на \`$new\`, закрыт без мержа. Решение в силе — закрой этот issue; передумали — бампни вручную." \
-      '{title:$t, body:$b, labels:["dependencies"]}')" >/dev/null
+      '{title:$t, body:$b}')" >/dev/null
     log "$tool: PR закрывали -> issue-напоминание"; return
   fi
   body="Апстрим выпустил \`$new\` (запинено \`$old\`; ярус дельты: **$tr**).
