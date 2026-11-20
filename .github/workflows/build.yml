@@ -53,7 +53,8 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
-      - name: Build and push (native ${{ matrix.arch }})
+      - name: Build (native ${{ matrix.arch }})
+        id: build
         run: |
           # GHCR-путь обязан быть строчным; в языке выражений Actions нет toLower,
           # понижаем регистр в bash (GITHUB_REPOSITORY = "Owner/Repo")
@@ -65,13 +66,40 @@ jobs:
           docker build --platform "linux/${{ matrix.arch }}" \
             -t "$IMAGE:$TAG-${{ matrix.arch }}" \
             -t "$IMAGE_GHCR:$TAG-${{ matrix.arch }}" .
-          # на pull_request — только сборка (статус-чек для ветки); секреты
-          # реестров PR от форка всё равно не получит, пуш не нужен
-          if [ "$GITHUB_EVENT_NAME" != "pull_request" ]; then
-            docker push "$IMAGE:$TAG-${{ matrix.arch }}"
-            docker push "$IMAGE_GHCR:$TAG-${{ matrix.arch }}"
-          fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "image_dh=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "image_ghcr=$IMAGE_GHCR" >> "$GITHUB_OUTPUT"
+      - name: Smoke test (native ${{ matrix.arch }})
+        run: |
+          # Итоговый образ — FROM scratch, шелла в нём нет; бинарники извлекаем
+          # и гоняем на нативной архе в Alpine (она же даёт /etc/ssl/certs для
+          # curl, собранного с --with-ca-path). Тесты повторяют контракт
+          # потребителя (ES7): PATH с /tools раньше системного, xz-раундтрип,
+          # живой TLS. Провал — ред до всякого пуша.
+          set -eu
+          IMG="${{ steps.build.outputs.image_dh }}:${{ steps.build.outputs.tag }}-${{ matrix.arch }}"
+          # в scratch-образе нет CMD — docker create требует команду; даём наш же jq
+          CID=$(docker create --entrypoint /tools/jq "$IMG" --version)
+          rm -rf /tmp/skt-smoke && mkdir -p /tmp/skt-smoke
+          docker cp "$CID:/tools" /tmp/skt-smoke/tools
+          docker rm "$CID" >/dev/null
+          docker run --rm -v /tmp/skt-smoke/tools:/tools:ro alpine:3.22 sh -euc '
+            PATH=/tools:$PATH
+            command -v curl | grep -q ^/tools/curl          # контракт PATH (ES7)
+            command -v jq    | grep -q ^/tools/jq
+            echo "{\"a\":2}" | jq -e ".a * 2 == 4" >/dev/null
+            printf abcdef | xz -c > /tmp/t.xz && xz -t /tmp/t.xz   # раундтрип как у tar -J
+            curl -sSf --max-time 15 https://api.github.com/zen -o /dev/null
+            curl --version | grep -q OpenSSL                # TLS-бэкенд на месте
+            [ -f /tools/licenses/jq-MIT ] || [ -d /tools/licenses ]
+            echo "smoke ok: $(jq --version) $(curl --version | head -1) $(xz --version | head -1)"
+          '
+      - name: Push (native ${{ matrix.arch }})
+        if: github.event_name != 'pull_request'
+        run: |
+          TAG="${{ steps.build.outputs.tag }}"
+          docker push "${{ steps.build.outputs.image_dh }}:$TAG-${{ matrix.arch }}"
+          docker push "${{ steps.build.outputs.image_ghcr }}:$TAG-${{ matrix.arch }}"
 
   publish:
     needs: build
